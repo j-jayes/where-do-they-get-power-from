@@ -27,7 +27,8 @@ Cleaning and merging data on energy data from [BP](https://www.bp.com/en/global/
 df <- readxl::read_excel("data/test.xlsx")
 
 df <- df %>% 
-  filter(!is.na(entity)) %>% 
+  filter(!is.na(entity),
+         !str_detect(entity, "Total")) %>% 
   mutate(metric = "Primary energy: Consumption",
          unit = "exajoules") %>% 
   mutate(across(-c(entity, metric, unit), parse_number))
@@ -57,7 +58,8 @@ df %>%
 df <- read_excel("data/primary-energy-consumption-by-fuel-2018-2019.xlsx")
 
 df <- df %>% 
-  filter(!is.na(entity)) %>% 
+  filter(!is.na(entity),
+         !str_detect(entity, "Total")) %>% 
   mutate(metric = "Primary energy: Consumption by fuel",
          unit = "exajoules") %>% 
   group_by(year) %>% 
@@ -65,15 +67,41 @@ df <- df %>%
   mutate(largest_index = row_number()) %>% 
   ungroup()
 
+df_pct <- df %>% 
+  mutate(across(-c(entity, year, metric, unit, largest_index), ~ .x/Total))
+
 df <- df %>% 
+  pivot_longer(-c(entity, year, metric, unit, largest_index), names_to = "fuel")
+
+df_pct <- df_pct %>% 
   pivot_longer(-c(entity, year, metric, unit, largest_index), names_to = "fuel")
 
 df %>% 
   filter(year == 2019,
          largest_index <= 15,
          fuel != "Total") %>% 
+  pivot_wider(names_from = "fuel") %>% 
+  mutate(entity = fct_reorder(entity, `Renewables`)) %>% 
+  pivot_longer(-c(entity, year, metric, unit, largest_index), names_to = "fuel") %>% 
   ggplot(aes(value, entity, fill = fuel)) +
   geom_col(position = "fill")
+
+df_pct %>% 
+  filter(year == 2019,
+         largest_index <= 15,
+         fuel != "Total") %>% 
+  pivot_wider(names_from = "fuel") %>% 
+  mutate(entity = fct_reorder(entity, `Renewables`)) %>% 
+  pivot_longer(-c(entity, year, metric, unit, largest_index), names_to = "fuel") %>% 
+  ggplot(aes(value, entity, fill = fuel)) +
+  geom_col(position = "fill") +
+  scale_x_continuous(labels = scales::percent_format()) +
+  scale_fill_brewer(palette = "Dark2") +
+  guides(fill = guide_legend(reverse = T)) +
+  labs(x = "Share of primary energy from:",
+       y = NULL,
+       fill = "Fuel") 
+
 
 ```
 
